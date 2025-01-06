@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.v1.endpoints import questions, knowledge_graph
+from backend.api.v1.endpoints import questions, knowledge_graph
 
 app = FastAPI(title="Math Question Analyzer")
 
