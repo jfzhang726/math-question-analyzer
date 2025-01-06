@@ -37,12 +37,12 @@ streamlit run app.py
 ```
   MATCH (n) RETURN count(n);
 ```
-  // Create a test node
+  Create a test node
 ```
   CREATE (q:Question {text: "What is 2 + 2?"})
   RETURN q;
 ```
-  // Verify it was created
+  Verify it was created
   ```
   MATCH (q:Question)
   RETURN q;
