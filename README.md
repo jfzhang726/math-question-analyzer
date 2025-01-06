@@ -34,17 +34,19 @@ streamlit run app.py
   (Username and password in demo are neo4j and your_password_here. )
 3. Check data in neo4j
   In browser http://localhost:7474
-
+```
   MATCH (n) RETURN count(n);
-
+```
   // Create a test node
+```
   CREATE (q:Question {text: "What is 2 + 2?"})
   RETURN q;
-
+```
   // Verify it was created
+  ```
   MATCH (q:Question)
   RETURN q;
-  
+  ```
 4. Check if Neo4j ports are listening
 In terminal
 ```bash
