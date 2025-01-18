@@ -86,3 +86,64 @@ class Neo4jService:
                 concept=concept
             )
             return [dict(record) for record in await result.data()]
+        
+    async def execute_query(self, query: str, params: Dict = None):
+        """Execute a Neo4j query with parameters."""
+        async with self.driver.session() as session:
+            await session.run(query, params or {})
+
+    async def get_concept_alternatives(self, concept_name: str) -> List[str]:
+        """Get all alternative forms of a concept."""
+        query = """
+        MATCH (c:Concept {name: $name})-[:ALTERNATIVE_FORM]->(a:AlternativeForm)
+        RETURN collect(a.name) as alternatives
+        """
+        async with self.driver.session() as session:
+            result = await session.run(query, {"name": concept_name})
+            record = await result.single()
+            return record["alternatives"] if record else []
+
+    async def get_concept_hierarchy(self, concept_name: str) -> Dict:
+        """Get concept hierarchy showing prerequisites and extensions."""
+        query = """
+        MATCH (c:Concept {name: $name})
+        OPTIONAL MATCH (c)<-[r:REQUIRES_PREREQUISITE]-(q:Question)-[:TESTS_CONCEPT]->(c)
+        WITH c, collect(DISTINCT r) as prereq_rels
+        OPTIONAL MATCH (c)<-[:TESTS_CONCEPT]-(q:Question)-[:EXTENDS_TO]->(e:Extension)
+        RETURN {
+            name: c.name,
+            prerequisites: [(c)<-[:REQUIRES_PREREQUISITE]-(q:Question)-[:TESTS_CONCEPT]->(p:Concept) | p.name],
+            extensions: collect(DISTINCT e.name),
+            usage_count: size(prereq_rels)
+        } as hierarchy
+        """
+        async with self.driver.session() as session:
+            result = await session.run(query, {"name": concept_name})
+            record = await result.single()
+            return record["hierarchy"] if record else {}
+
+    async def get_domain_concepts(self, domain: str) -> List[Dict]:
+        """Get all concepts within a mathematical domain."""
+        query = """
+        MATCH (q:Question {domain: $domain})-[:TESTS_CONCEPT]->(c:Concept)
+        WITH c, count(q) as usage_count
+        RETURN {
+            name: c.name,
+            usage_count: usage_count
+        } as concept
+        ORDER BY usage_count DESC
+        """
+        async with self.driver.session() as session:
+            result = await session.run(query, {"domain": domain})
+            return [record["concept"] async for record in result]
+
+    async def get_concept_difficulty(self, concept_name: str) -> float:
+        """Calculate concept difficulty based on questions that test it."""
+        query = """
+        MATCH (c:Concept {name: $name})<-[:TESTS_CONCEPT]-(q:Question)
+        RETURN avg(q.difficulty_level) as avg_difficulty
+        """
+        async with self.driver.session() as session:
+            result = await session.run(query, {"name": concept_name})
+            record = await result.single()
+            return record["avg_difficulty"] if record else 0.0
