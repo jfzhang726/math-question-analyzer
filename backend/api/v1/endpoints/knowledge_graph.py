@@ -38,6 +38,7 @@ async def get_related_concepts(
     try:
         return await neo4j.get_related_concepts(concept)
     except Exception as e:
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/prerequisites/{concept}")

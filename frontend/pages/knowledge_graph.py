@@ -30,6 +30,7 @@ def display_concept_details(concept: str):
     try:
         related = requests.get(f"http://localhost:8000/api/v1/knowledge-graph/related/{concept}").json()
         prereqs = requests.get(f"http://localhost:8000/api/v1/knowledge-graph/prerequisites/{concept}").json()
+        
     except Exception as e:
         st.error(f"Error fetching concept details: {str(e)}")
         return
