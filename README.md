@@ -57,3 +57,7 @@ Test-NetConnection -ComputerName localhost -Port 7687  # Bolt protocol
 ### 2025.01.05
 Phase 1 start
 
+
+### 2025.01.18
+1. 
+format "json-object" is supported by gpt-4o-mini but not gpt-4 
