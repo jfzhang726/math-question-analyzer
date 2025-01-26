@@ -60,6 +60,76 @@ class Neo4jService:
             )
             return [dict(record) for record in await result.data()]
 
+    async def get_all_questions(self):
+        async with self.driver.session() as session:
+            result = await session.run(
+                """
+                MATCH (q:Question)
+                RETURN q.text as text
+                """
+            )
+            return [dict(record) for record in await result.data()]
+
+    async def get_related_questions(self, question: str):
+        async with self.driver.session() as session:
+            result = await session.run(
+                """
+                MATCH (q1:Question {text: $question})-[r:RELATED_TO]->(q2:Question)
+                WHERE q1 <> q2
+                RETURN q2.text as text, count(*) as strength
+                ORDER BY strength DESC
+                """,
+                question=question
+            )
+            return [dict(record) for record in await result.data()]
+
+    async def get_prerequisites_question(self, question: str):
+        async with self.driver.session() as session:
+            result = await session.run(
+                """
+                MATCH (q:Question {text: $question})-[r:REQUIRES_PREREQUISITE]->(p:Prerequisite)
+                RETURN p.name as name, count(*) as count
+                ORDER BY count DESC
+                """,
+                question=question
+            )
+            return [dict(record) for record in await result.data()]
+
+    async def get_all_techniques(self):
+        async with self.driver.session() as session:
+            result = await session.run(
+                """
+                MATCH (t:Technique)
+                RETURN t.name as name
+                """
+            )
+            return [dict(record) for record in await result.data()]
+
+    async def get_related_techniques(self, technique: str):
+        async with self.driver.session() as session:
+            result = await session.run(
+                """
+                MATCH (t1:Technique {name: $technique})-[r:RELATED_TO]->(t2:Technique)
+                WHERE t1 <> t2
+                RETURN t2.name as name, count(*) as strength
+                ORDER BY strength DESC
+                """,
+                technique=technique
+            )
+            return [dict(record) for record in await result.data()]
+
+    async def get_prerequisites_technique(self, technique: str):
+        async with self.driver.session() as session:
+            result = await session.run(
+                """
+                MATCH (t:Technique {name: $technique})-[r:REQUIRES_PREREQUISITE]->(p:Prerequisite)
+                RETURN p.name as name, count(*) as count
+                ORDER BY count DESC
+                """,
+                technique=technique
+            )
+            return [dict(record) for record in await result.data()]
+
     async def get_related_concepts(self, concept: str):
         async with self.driver.session() as session:
             result = await session.run(
