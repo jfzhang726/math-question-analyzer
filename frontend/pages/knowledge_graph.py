@@ -1,21 +1,24 @@
 import streamlit as st
 import requests
-import networkx as nx
-import plotly.graph_objects as go
-from typing import Dict, List
+import json
+import os
 
 def render_knowledge_graph_page():
     st.title("Knowledge Graph Visualization")
-    
-    # Get concepts from backend
+
+    # Initialize session state
+    if "static_dir" not in st.session_state:
+        st.session_state.static_dir = os.path.join(os.getcwd(), "static")
+        os.makedirs(st.session_state.static_dir, exist_ok=True)
+
     try:
         response = requests.get("http://localhost:8000/api/v1/knowledge-graph/concepts")
+        response.raise_for_status()
         concepts = response.json()
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         st.error(f"Error fetching concepts: {str(e)}")
-        return
+        return []
 
-    # Create sidebar for concept selection
     selected_concept = st.sidebar.selectbox(
         "Select a concept to explore",
         options=[c["name"] for c in concepts],
@@ -26,105 +29,122 @@ def render_knowledge_graph_page():
         display_concept_details(selected_concept)
 
 def display_concept_details(concept: str):
-    # Fetch related data
     try:
-        related = requests.get(f"http://localhost:8000/api/v1/knowledge-graph/related/{concept}").json()
-        prereqs = requests.get(f"http://localhost:8000/api/v1/knowledge-graph/prerequisites/{concept}").json()
-        
-    except Exception as e:
+        related_response = requests.get(f"http://localhost:8000/api/v1/knowledge-graph/related/{concept}")
+        related_response.raise_for_status()
+        related = related_response.json()
+
+        prereqs_response = requests.get(f"http://localhost:8000/api/v1/knowledge-graph/prerequisites/{concept}")
+        prereqs_response.raise_for_status()
+        prereqs = prereqs_response.json()
+
+    except requests.exceptions.RequestException as e:
         st.error(f"Error fetching concept details: {str(e)}")
         return
 
-    # Create network graph
-    G = nx.Graph()
-    
-    # Add central concept
-    G.add_node(concept, node_type="main")
-    
-    # Add related concepts
-    for rel in related:
-        G.add_node(rel["name"], node_type="related")
-        G.add_edge(concept, rel["name"], weight=rel["strength"])
-    
-    # Add prerequisites
-    for prereq in prereqs:
-        G.add_node(prereq["name"], node_type="prerequisite")
-        G.add_edge(concept, prereq["name"], weight=prereq["count"])
+    cytoscape_data = {"nodes": [], "edges": []}
+    cytoscape_data["nodes"].append({"data": {"id": concept, "label": concept, "type": "main"}})
 
-    # Create visualization using plotly
-    pos = nx.spring_layout(G)
-    
-    # Create edges
-    edge_x = []
-    edge_y = []
-    for edge in G.edges():
-        x0, y0 = pos[edge[0]]
-        x1, y1 = pos[edge[1]]
-        edge_x.extend([x0, x1, None])
-        edge_y.extend([y0, y1, None])
+    if related:
+        for rel in related:
+            cytoscape_data["nodes"].append({"data": {"id": rel["name"], "label": rel["name"], "type": "related"}})
+            cytoscape_data["edges"].append({"data": {"source": concept, "target": rel["name"], "weight": rel["strength"]}})
 
-    # Create nodes
-    node_x = []
-    node_y = []
-    node_text = []
-    node_color = []
-    
-    for node in G.nodes():
-        x, y = pos[node]
-        node_x.append(x)
-        node_y.append(y)
-        node_text.append(node)
-        
-        if G.nodes[node]["node_type"] == "main":
-            node_color.append("red")
-        elif G.nodes[node]["node_type"] == "related":
-            node_color.append("blue")
-        else:
-            node_color.append("green")
+    if prereqs:
+        for prereq in prereqs:
+            cytoscape_data["nodes"].append({"data": {"id": prereq["name"], "label": prereq["name"], "type": "prerequisite"}})
+            cytoscape_data["edges"].append({"data": {"source": concept, "target": prereq["name"], "weight": prereq["count"]}})
 
-    # Create the plot
-    fig = go.Figure()
-    
-    # Add edges
-    fig.add_trace(go.Scatter(
-        x=edge_x, y=edge_y,
-        line=dict(width=0.5, color="#888"),
-        hoverinfo="none",
-        mode="lines"
-    ))
-    
-    # Add nodes
-    fig.add_trace(go.Scatter(
-        x=node_x, y=node_y,
-        mode="markers+text",
-        marker=dict(
-            size=20,
-            color=node_color,
-            line_width=2
-        ),
-        text=node_text,
-        textposition="bottom center",
-        hoverinfo="text"
-    ))
-    
-    fig.update_layout(
-        showlegend=False,
-        hovermode="closest",
-        margin=dict(b=0, l=0, r=0, t=0),
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+    html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.21.2/cytoscape.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.21.2/cytoscape-cose-bilkent.min.js"></script>
+            <style>
+                #cy {{
+                    width: 100%;
+                    height: 600px;
+                    border: 1px solid black;
+                }}
+                .main {{
+                    background-color: red;
+                }}
+                .related {{
+                    background-color: blue;
+                }}
+                .prerequisite {{
+                    background-color: green;
+                }}
+            </style>
+            <script>
+                let cytoscape_data = {json.dumps(cytoscape_data)};
+                console.log("Cytoscape Data:", cytoscape_data);
+                document.addEventListener('DOMContentLoaded', function() {{
+                  if (cytoscape_data.nodes.length > 0) {{
+                    let cy = cytoscape({{
+                        container: document.getElementById('cy'),
+                        elements: cytoscape_data,
+                        style: [
+                            {{
+                                selector: 'node',
+                                style: {{
+                                    'label': 'data(label)'
+                                }}
+                            }},
+                            {{
+                                selector: '.main',
+                                style: {{
+                                    'background-color': 'red'
+                                }}
+                            }},
+                            {{
+                                selector: '.related',
+                                style: {{
+                                    'background-color': 'blue'
+                                }}
+                            }},
+                            {{
+                                selector: '.prerequisite',
+                                style: {{
+                                    'background-color': 'green'
+                                }}
+                            }},
+                            {{
+                                selector: 'edge',
+                                style: {{
+                                    'width': 'data(weight)',
+                                    'line-color': '#888'
+                                }}
+                            }}
+                        ],
+                        layout: {{
+                            name: 'cose'
+                        }}
+                    }});
+                    cy.on('layoutstop', function(){{
+                      console.log('Layout complete!');
+                    }})
+                  }} else {{
+                    console.log("No data to display.");
+                    document.getElementById('cy').innerText = "No data to display.";
+                  }}
+                }});
+            </script>
+        </head>
+        <body>
+            <div id="cy"></div>
+        </body>
+        </html>
+    """
+    st.components.v1.html(html_content, height=700)
 
     # Display additional information
     col1, col2 = st.columns(2)
-    
     with col1:
         st.subheader("Related Concepts")
         for rel in related:
             st.write(f"- {rel['name']} (Strength: {rel['strength']})")
-    
     with col2:
         st.subheader("Prerequisites")
         for prereq in prereqs:
