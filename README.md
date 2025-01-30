@@ -53,6 +53,17 @@ In terminal
 Test-NetConnection -ComputerName localhost -Port 7474  # Browser interface
 Test-NetConnection -ComputerName localhost -Port 7687  # Bolt protocol
 ```
+5. Check math questions loaded in neo4j
+
+```
+MATCH p=(q1:Question)-[*1..4]-(q2:Question) RETURN DISTINCT p
+
+```
+![{BD074169-E8CE-4F6D-B31B-4E7DDCF592B9}](https://github.com/user-attachments/assets/9ee9c599-67f6-4c29-a1ff-cfad332b2e48)
+
+
+
+
 ## log 
 ### 2025.01.05
 Phase 1 start
